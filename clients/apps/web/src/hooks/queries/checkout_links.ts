@@ -52,24 +52,6 @@ export const useCheckoutLink = (id?: string | null) =>
     enabled: !!id,
   })
 
-export const useCreateCheckoutLink = () =>
-  useMutation({
-    mutationFn: (body: schemas['CheckoutLinkCreateProducts']) => {
-      return api.POST('/v1/checkout-links/', { body })
-    },
-    onSuccess: (result, _variables, _ctx) => {
-      const { data, error } = result
-
-      if (error) {
-        return
-      }
-
-      getQueryClient().invalidateQueries({
-        queryKey: ['checkout_links', { organizationId: data.organization_id }],
-      })
-    },
-  })
-
 export const useUpdateCheckoutLink = () =>
   useMutation({
     mutationFn: (variables: {

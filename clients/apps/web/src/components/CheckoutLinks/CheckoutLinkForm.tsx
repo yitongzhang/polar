@@ -1,5 +1,4 @@
 import {
-  useCreateCheckoutLink,
   useDiscount,
   useDiscounts,
   useSelectedProducts,
@@ -29,17 +28,17 @@ import ProductSelect from '../Products/ProductSelect'
 import { toast } from '../Toast/use-toast'
 import { TrialConfigurationForm } from '../TrialConfiguration/TrialConfigurationForm'
 
-type CheckoutLinkCreateForm = Omit<
-  schemas['CheckoutLinkCreateProducts'],
-  'payment_processor' | 'metadata'
+type CheckoutLinkUpdateForm = Omit<
+  schemas['CheckoutLinkUpdate'],
+  'metadata'
 > & {
   metadata: { key: string; value: string | number | boolean }[]
+  products: string[]
 }
 
 export interface CheckoutLinkFormProps {
   organization: schemas['Organization']
-  checkoutLink?: schemas['CheckoutLink']
-  productIds?: string[]
+  checkoutLink: schemas['CheckoutLink']
   onClose: (checkoutLink: schemas['CheckoutLink']) => void
 }
 
@@ -47,7 +46,6 @@ export const CheckoutLinkForm = ({
   organization,
   checkoutLink,
   onClose,
-  productIds,
 }: CheckoutLinkFormProps) => {
   const [discountQuery, setDiscountQuery] = useState('')
 
@@ -67,34 +65,22 @@ export const CheckoutLinkForm = ({
     checkoutLink?.discount_id,
   )
 
-  const defaultValues = useMemo<CheckoutLinkCreateForm>(() => {
-    if (checkoutLink) {
-      return {
-        ...checkoutLink,
-        label: checkoutLink.label ?? null,
-        metadata: Object.entries(checkoutLink.metadata ?? {}).map(
-          ([key, value]) => ({ key, value }),
-        ),
-        products: checkoutLink.products.map(({ id }) => id),
-        allow_discount_codes: checkoutLink.allow_discount_codes ?? true,
-        require_billing_address: checkoutLink.require_billing_address ?? false,
-        success_url: checkoutLink.success_url ?? '',
-        discount_id: checkoutLink.discount_id ?? '',
-      }
-    }
-
+  const defaultValues = useMemo<CheckoutLinkUpdateForm>(() => {
     return {
-      label: null,
-      metadata: [],
-      products: productIds ?? [],
-      allow_discount_codes: true,
-      require_billing_address: false,
-      success_url: '',
-      discount_id: '',
+      ...checkoutLink,
+      label: checkoutLink.label ?? null,
+      metadata: Object.entries(checkoutLink.metadata ?? {}).map(
+        ([key, value]) => ({ key, value }),
+      ),
+      products: checkoutLink.products.map(({ id }) => id),
+      allow_discount_codes: checkoutLink.allow_discount_codes ?? true,
+      require_billing_address: checkoutLink.require_billing_address ?? false,
+      success_url: checkoutLink.success_url ?? '',
+      discount_id: checkoutLink.discount_id ?? '',
     }
-  }, [checkoutLink, productIds])
+  }, [checkoutLink])
 
-  const form = useForm<CheckoutLinkCreateForm>({
+  const form = useForm<CheckoutLinkUpdateForm>({
     defaultValues,
   })
 
@@ -117,29 +103,17 @@ export const CheckoutLinkForm = ({
   }, [selectedProducts])
 
   useEffect(() => {
-    if (!checkoutLink) return
     reset(defaultValues)
   }, [checkoutLink, reset, defaultValues])
 
-  const { mutateAsync: createCheckoutLink, isPending: isCreatePending } =
-    useCreateCheckoutLink()
   const { mutateAsync: updateCheckoutLink, isPending: isUpdatePending } =
     useUpdateCheckoutLink()
 
   const handleValidationError = useCallback(
-    (data: CheckoutLinkCreateForm, errors: schemas['ValidationError'][]) => {
-      const discriminators = ['CheckoutLinkCreateProducts']
-      const filteredErrors = checkoutLink
-        ? errors
-        : errors.filter((error) =>
-            discriminators.includes(error.loc[1] as string),
-          )
-      setValidationErrors(filteredErrors, setError, 1, discriminators)
-      filteredErrors.forEach((error) => {
-        let loc = error.loc.slice(1)
-        if (discriminators.includes(loc[0] as string)) {
-          loc = loc.slice(1)
-        }
+    (data: CheckoutLinkUpdateForm, errors: schemas['ValidationError'][]) => {
+      setValidationErrors(errors, setError, 1, [])
+      errors.forEach((error) => {
+        const loc = error.loc.slice(1)
         if (loc[0] === 'metadata') {
           const metadataKey = loc[1]
           const metadataIndex = data.metadata.findIndex(
@@ -154,13 +128,12 @@ export const CheckoutLinkForm = ({
         }
       })
     },
-    [checkoutLink, setError],
+    [setError],
   )
 
-  const onSubmit: SubmitHandler<CheckoutLinkCreateForm> = useCallback(
+  const onSubmit: SubmitHandler<CheckoutLinkUpdateForm> = useCallback(
     async (data) => {
-      const body: schemas['CheckoutLinkCreateProducts'] = {
-        payment_processor: 'stripe',
+      const body: schemas['CheckoutLinkUpdate'] = {
         ...data,
         discount_id: data.discount_id || null,
         success_url: data.success_url || null,
@@ -170,54 +143,30 @@ export const CheckoutLinkForm = ({
         ),
       }
 
-      let newCheckoutLink: schemas['CheckoutLink']
-
-      if (checkoutLink) {
-        const { data: updatedCheckoutLink, error } = await updateCheckoutLink({
-          id: checkoutLink.id,
-          body,
-        })
-        if (error) {
-          if (isValidationError(error.detail)) {
-            handleValidationError(data, error.detail)
-          } else {
-            setError('root', { message: error.detail })
-          }
-          return
+      const { data: updatedCheckoutLink, error } = await updateCheckoutLink({
+        id: checkoutLink.id,
+        body,
+      })
+      if (error) {
+        if (isValidationError(error.detail)) {
+          handleValidationError(data, error.detail)
+        } else {
+          setError('root', { message: error.detail })
         }
-        newCheckoutLink = updatedCheckoutLink
-        toast({
-          title: 'Checkout Link Updated',
-          description: `${
-            newCheckoutLink.label ? newCheckoutLink.label : 'Unlabeled'
-          } Checkout Link was updated successfully`,
-        })
-      } else {
-        const { data: createdCheckoutLink, error } =
-          await createCheckoutLink(body)
-        if (error) {
-          if (isValidationError(error.detail)) {
-            handleValidationError(data, error.detail)
-          } else {
-            setError('root', { message: error.detail })
-          }
-          return
-        }
-        newCheckoutLink = createdCheckoutLink
-        toast({
-          title: 'Checkout Link Created',
-          description: `${
-            newCheckoutLink.label ? newCheckoutLink.label : 'Unlabeled'
-          } Checkout Link was created successfully`,
-        })
+        return
       }
+      toast({
+        title: 'Checkout Link Updated',
+        description: `${
+          updatedCheckoutLink.label ? updatedCheckoutLink.label : 'Unlabeled'
+        } Checkout Link was updated successfully`,
+      })
 
-      onClose(newCheckoutLink)
+      onClose(updatedCheckoutLink)
     },
     [
       onClose,
       checkoutLink,
-      createCheckoutLink,
       updateCheckoutLink,
       setError,
       handleValidationError,
@@ -477,9 +426,9 @@ export const CheckoutLinkForm = ({
             <Button
               className="self-start"
               type="submit"
-              loading={isCreatePending || isUpdatePending}
+              loading={isUpdatePending}
             >
-              {checkoutLink ? 'Save Link' : 'Create Link'}
+              Save Link
             </Button>
           </div>
         </form>
