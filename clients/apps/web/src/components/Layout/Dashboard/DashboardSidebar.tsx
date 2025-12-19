@@ -224,13 +224,6 @@ export const DashboardSidebar = ({
                   ))}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() =>
-                      router.push('/dashboard/create?existing_org=true')
-                    }
-                  >
-                    New Organization
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
                     onClick={() => router.push('/dashboard/account')}
                   >
                     Account Settings

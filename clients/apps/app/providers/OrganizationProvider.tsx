@@ -4,7 +4,7 @@ import { useStorageState } from '@/hooks/storage'
 import { ExtensionStorage } from '@bacons/apple-targets'
 import { schemas } from '@polar-sh/client'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { Redirect, usePathname } from 'expo-router'
+import { usePathname } from 'expo-router'
 import { createContext, PropsWithChildren, useEffect, useMemo } from 'react'
 import { ActivityIndicator } from 'react-native'
 import { useSession } from './SessionProvider'
@@ -88,8 +88,13 @@ export function PolarOrganizationProvider({ children }: PropsWithChildren) {
     )
   }
 
-  if (organizations.length === 0 && pathname !== '/onboarding') {
-    return <Redirect href="/onboarding" />
+  if (organizations.length === 0) {
+    // No organizations - show loading state
+    return (
+      <Box flex={1} justifyContent="center" alignItems="center">
+        <ActivityIndicator size="large" />
+      </Box>
+    )
   }
 
   return (
