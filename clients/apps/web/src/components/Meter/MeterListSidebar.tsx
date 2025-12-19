@@ -3,7 +3,6 @@
 import Spinner from '@/components/Shared/Spinner'
 import { useMetersInfinite } from '@/hooks/queries/meters'
 import { useInViewport } from '@/hooks/utils'
-import AddOutlined from '@mui/icons-material/AddOutlined'
 import ArrowDownward from '@mui/icons-material/ArrowDownward'
 import ArrowUpward from '@mui/icons-material/ArrowUpward'
 import CheckOutlined from '@mui/icons-material/CheckOutlined'
@@ -143,11 +142,6 @@ export const MeterListSidebar: React.FC<MeterListSidebarProps> = ({
               <ArrowDownward fontSize="small" />
             )}
           </Button>
-          <Link href={`/dashboard/${organization.slug}/products/meters/create`}>
-            <Button size="icon" className="h-6 w-6">
-              <AddOutlined fontSize="small" />
-            </Button>
-          </Link>
         </div>
       </div>
       <div className="flex flex-row items-center gap-3 px-4 py-2">

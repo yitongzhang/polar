@@ -122,26 +122,6 @@ export const useMeterQuantities = (
     retry: defaultRetry,
   })
 
-export const useCreateMeter = (organizationId: string) =>
-  useMutation({
-    mutationFn: (data: schemas['MeterCreate']) =>
-      api.POST('/v1/meters/', {
-        body: { ...data, organization_id: organizationId },
-      }),
-    onSuccess: async (result, _variables, _ctx) => {
-      if (result.error) {
-        return
-      }
-      const queryClient = getQueryClient()
-      queryClient.invalidateQueries({
-        queryKey: ['meters', { organizationId }],
-      })
-      queryClient.invalidateQueries({
-        queryKey: ['infinite', 'meters', { organizationId }],
-      })
-    },
-  })
-
 export const useUpdateMeter = (id: string) =>
   useMutation({
     mutationFn: (body: schemas['MeterUpdate']) =>

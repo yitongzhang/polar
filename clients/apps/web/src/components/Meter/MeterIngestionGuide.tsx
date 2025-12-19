@@ -6,8 +6,6 @@ import {
   SyntaxHighlighterProvider,
 } from '@/components/SyntaxHighlighterShiki/SyntaxHighlighterClient'
 import { OrganizationContext } from '@/providers/maintainerOrganization'
-import Button from '@polar-sh/ui/components/atoms/Button'
-import Link from 'next/link'
 import { useContext } from 'react'
 
 export const MeterIngestionGuide = () => {
@@ -35,11 +33,6 @@ export const MeterIngestionGuide = () => {
                   <code>api_call</code>.
                 </p>
               </div>
-              <Link
-                href={`/dashboard/${organization.slug}/products/meters/create`}
-              >
-                <Button>Create Meter</Button>
-              </Link>
             </WellContent>
           </div>
           <Well className="dark:bg-polar-900 flex-1 shrink overflow-auto bg-white p-6 text-sm">
