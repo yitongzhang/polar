@@ -1,7 +1,6 @@
 'use client'
 
 import CopyToClipboardButton from '@/components/CopyToClipboardButton/CopyToClipboardButton'
-import CreateDiscountModalContent from '@/components/Discounts/CreateDiscountModalContent'
 import UpdateDiscountModalContent from '@/components/Discounts/UpdateDiscountModalContent'
 import { DashboardBody } from '@/components/Layout/DashboardLayout'
 import { ConfirmModal } from '@/components/Modal/ConfirmModal'
@@ -17,7 +16,6 @@ import {
   serializeSearchParams,
 } from '@/utils/datatable'
 import { getDiscountDisplay } from '@/utils/discount'
-import AddOutlined from '@mui/icons-material/AddOutlined'
 import MoreVertOutlined from '@mui/icons-material/MoreVertOutlined'
 import Search from '@mui/icons-material/Search'
 import { schemas } from '@polar-sh/client'
@@ -298,7 +296,6 @@ const ClientPage: React.FC<ClientPageProps> = ({
     },
   ]
 
-  const [showNewModal, setShowNewModal] = useState(false)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [selectedDiscount, setSelectedDiscount] =
     useState<schemas['Discount']>()
@@ -319,14 +316,6 @@ const ClientPage: React.FC<ClientPageProps> = ({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
           />
-          <Button
-            type="button"
-            wrapperClassNames="flex flex-row items-center gap-x-2"
-            onClick={() => setShowNewModal(true)}
-          >
-            <AddOutlined fontSize="small" />
-            <span>New Discount</span>
-          </Button>
         </div>
         {discounts && pageCount !== undefined && (
           <DataTable
@@ -342,17 +331,6 @@ const ClientPage: React.FC<ClientPageProps> = ({
           />
         )}
       </div>
-      <InlineModal
-        isShown={showNewModal}
-        hide={() => setShowNewModal(false)}
-        modalContent={
-          <CreateDiscountModalContent
-            organization={organization}
-            onDiscountCreated={() => setShowNewModal(false)}
-            hideModal={() => setShowNewModal(false)}
-          />
-        }
-      />
       <InlineModal
         isShown={showUpdateModal}
         hide={() => setShowUpdateModal(false)}
