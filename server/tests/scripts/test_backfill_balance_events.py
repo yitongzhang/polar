@@ -5,7 +5,7 @@ from polar.event.system import SystemEvent
 from polar.kit.db.postgres import AsyncSession
 from polar.models import Event, Organization, Product, Transaction
 from polar.models.event import EventSource
-from polar.models.transaction import TransactionType
+from polar.models.transaction import PlatformFeeType, TransactionType
 from scripts.backfill_balance_events import (
     create_missing_balance_dispute_events,
     create_missing_balance_order_events,
@@ -64,6 +64,66 @@ class TestCreateMissingBalanceOrderEvents:
         assert event.user_metadata["amount"] == payment_transaction.amount
         assert event.user_metadata["currency"] == payment_transaction.currency
         assert event.user_metadata["tax_amount"] == order.tax_amount
+        assert event.user_metadata["fee"] == 0
+
+    async def test_computes_fees_from_balance_transactions(
+        self,
+        save_fixture: SaveFixture,
+        session: AsyncSession,
+        product: Product,
+        organization: Organization,
+    ) -> None:
+        customer = await create_customer(save_fixture, organization=organization)
+        order = await create_order(
+            save_fixture,
+            product=product,
+            customer=customer,
+        )
+        payment_transaction = await create_payment_transaction(
+            save_fixture,
+            order=order,
+        )
+
+        fee_balance_transaction = Transaction(
+            type=TransactionType.balance,
+            processor=None,
+            currency="usd",
+            amount=50,
+            account_currency="usd",
+            account_amount=50,
+            tax_amount=0,
+            account=None,
+            order=order,
+            platform_fee_type=PlatformFeeType.payment,
+        )
+        await save_fixture(fee_balance_transaction)
+
+        international_fee_transaction = Transaction(
+            type=TransactionType.balance,
+            processor=None,
+            currency="usd",
+            amount=25,
+            account_currency="usd",
+            account_amount=25,
+            tax_amount=0,
+            account=None,
+            order=order,
+            platform_fee_type=PlatformFeeType.international_payment,
+        )
+        await save_fixture(international_fee_transaction)
+
+        created = await create_missing_balance_order_events(
+            session, batch_size=10, rate_limit_delay=0
+        )
+
+        assert created == 1
+
+        event_repository = EventRepository.from_session(session)
+        events = await event_repository.get_all_by_name(SystemEvent.balance_order)
+
+        assert len(events) == 1
+        event = events[0]
+        assert event.user_metadata["fee"] == 75
 
     async def test_skips_transactions_with_existing_events(
         self,
@@ -166,6 +226,7 @@ class TestCreateMissingBalanceRefundEvents:
         assert event.user_metadata["tax_amount"] == refund_transaction.tax_amount
         assert event.user_metadata["tax_country"] == ""
         assert event.user_metadata["tax_state"] == ""
+        assert event.user_metadata["fee"] == 0
 
     async def test_skips_transactions_with_existing_events(
         self,
@@ -341,6 +402,58 @@ class TestCreateMissingBalanceDisputeEvents:
         assert event.user_metadata["tax_amount"] == dispute_transaction.tax_amount
         assert event.user_metadata["tax_country"] == ""
         assert event.user_metadata["tax_state"] == ""
+        assert event.user_metadata["fee"] == 0
+
+    async def test_computes_dispute_fees_from_balance_transactions(
+        self,
+        save_fixture: SaveFixture,
+        session: AsyncSession,
+        product: Product,
+        organization: Organization,
+    ) -> None:
+        customer = await create_customer(save_fixture, organization=organization)
+        order = await create_order(
+            save_fixture,
+            product=product,
+            customer=customer,
+        )
+        payment = await create_payment(save_fixture, organization, order=order)
+        dispute = await create_dispute(save_fixture, order=order, payment=payment)
+        dispute_transaction = await create_dispute_transaction(
+            save_fixture,
+            dispute=dispute,
+            order=order,
+        )
+        dispute_transaction.payment_customer = customer
+        dispute_transaction.payment_organization = organization
+        await save_fixture(dispute_transaction)
+
+        dispute_fee_transaction = Transaction(
+            type=TransactionType.balance,
+            processor=None,
+            currency="usd",
+            amount=1500,
+            account_currency="usd",
+            account_amount=1500,
+            tax_amount=0,
+            account=None,
+            order=order,
+            platform_fee_type=PlatformFeeType.dispute,
+        )
+        await save_fixture(dispute_fee_transaction)
+
+        created = await create_missing_balance_dispute_events(
+            session, batch_size=10, rate_limit_delay=0
+        )
+
+        assert created == 1
+
+        event_repository = EventRepository.from_session(session)
+        events = await event_repository.get_all_by_name(SystemEvent.balance_dispute)
+
+        assert len(events) == 1
+        event = events[0]
+        assert event.user_metadata["fee"] == 1500
 
     async def test_skips_transactions_with_existing_events(
         self,
@@ -447,6 +560,7 @@ class TestCreateMissingBalanceRefundReversalEvents:
         )
         assert event.user_metadata["tax_country"] == ""
         assert event.user_metadata["tax_state"] == ""
+        assert event.user_metadata["fee"] == 0
 
     async def test_skips_transactions_with_existing_events(
         self,

@@ -1504,6 +1504,7 @@ class OrderService:
                 "presentment_amount": payment_transaction.presentment_amount,
                 "presentment_currency": payment_transaction.presentment_currency,
                 "tax_amount": order.tax_amount,
+                "fee": 0,
             }
             if order.tax_rate is not None:
                 if order.tax_rate["country"] is not None:

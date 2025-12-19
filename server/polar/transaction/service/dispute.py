@@ -186,10 +186,12 @@ class DisputeTransactionService(BaseTransactionService):
         if dispute_reversal_transaction is not None:
             all_fees += dispute_reversal_fees
 
+        polar_fees: int = 0
         try:
-            await self._create_dispute_fees_balances(
+            fee_transactions = await self._create_dispute_fees_balances(
                 session, payment_transaction=payment_transaction, dispute_fees=all_fees
             )
+            polar_fees = sum(f[1].amount for f in fee_transactions)
         except NotBalancedPaymentTransaction:
             log.warning(
                 "Dispute fees balances could not be created for payment transaction",
@@ -218,6 +220,7 @@ class DisputeTransactionService(BaseTransactionService):
                     "tax_amount": settlement_tax_amount,
                     "tax_state": payment_transaction.tax_state,
                     "tax_country": payment_transaction.tax_country,
+                    "fee": polar_fees,
                 }
                 if order is not None:
                     metadata["order_id"] = str(order.id)

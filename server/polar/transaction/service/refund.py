@@ -146,6 +146,7 @@ class RefundTransactionService(BaseTransactionService):
                     "tax_amount": settlement_tax_amount,
                     "tax_country": payment_transaction.tax_country,
                     "tax_state": payment_transaction.tax_state,
+                    "fee": 0,
                 }
                 if order is not None:
                     metadata["order_id"] = str(order.id)

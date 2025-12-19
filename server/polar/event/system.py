@@ -360,6 +360,7 @@ class BalanceOrderMetadata(TypedDict):
     tax_amount: int
     tax_state: NotRequired[str]
     tax_country: NotRequired[str]
+    fee: int
 
 
 class BalanceOrderEvent(Event):
@@ -383,6 +384,7 @@ class BalanceRefundMetadata(TypedDict):
     tax_amount: int
     tax_state: str
     tax_country: str
+    fee: int
 
 
 class BalanceRefundEvent(Event):
@@ -412,6 +414,7 @@ class BalanceDisputeMetadata(TypedDict):
     tax_amount: int
     tax_state: str
     tax_country: str
+    fee: int
 
 
 class BalanceDisputeEvent(Event):

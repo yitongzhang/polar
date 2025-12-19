@@ -7,7 +7,7 @@ from typing import Any
 import structlog
 import typer
 from rich.progress import Progress
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from polar.config import settings
@@ -23,7 +23,7 @@ from polar.kit.db.postgres import create_async_engine as _create_async_engine
 from polar.models import Dispute, Event, Order, Refund, Transaction
 from polar.models.event import EventSource
 from polar.models.refund import RefundStatus
-from polar.models.transaction import TransactionType
+from polar.models.transaction import PlatformFeeType, TransactionType
 
 cli = typer.Typer()
 
@@ -40,6 +40,46 @@ def typer_async(f):  # type: ignore
     return wrapper
 
 
+async def _compute_fees_by_order(session: AsyncSession) -> dict[str, int]:
+    """
+    Compute total platform fees for each order.
+
+    Fees are stored as balance transactions with platform_fee_type set,
+    where account_id is NULL (Polar's share).
+    """
+    fees_result = await session.execute(
+        select(Transaction.order_id, func.sum(Transaction.amount))
+        .where(
+            Transaction.type == TransactionType.balance,
+            Transaction.order_id.is_not(None),
+            Transaction.platform_fee_type.is_not(None),
+            Transaction.account_id.is_(None),
+        )
+        .group_by(Transaction.order_id)
+    )
+    return {str(row[0]): row[1] for row in fees_result.fetchall()}
+
+
+async def _compute_dispute_fees_by_order(session: AsyncSession) -> dict[str, int]:
+    """
+    Compute dispute fees for each order.
+
+    Dispute fees are balance transactions with platform_fee_type='dispute',
+    where account_id is NULL (Polar's share).
+    """
+    fees_result = await session.execute(
+        select(Transaction.order_id, func.sum(Transaction.amount))
+        .where(
+            Transaction.type == TransactionType.balance,
+            Transaction.order_id.is_not(None),
+            Transaction.platform_fee_type == PlatformFeeType.dispute,
+            Transaction.account_id.is_(None),
+        )
+        .group_by(Transaction.order_id)
+    )
+    return {str(row[0]): row[1] for row in fees_result.fetchall()}
+
+
 async def create_missing_balance_order_events(
     session: AsyncSession,
     batch_size: int,
@@ -49,6 +89,10 @@ async def create_missing_balance_order_events(
     Create balance.order events for payment transactions that don't have one.
     """
     typer.echo("\n=== Creating missing balance.order events ===")
+
+    typer.echo("Computing fees by order...")
+    fees_by_order = await _compute_fees_by_order(session)
+    typer.echo(f"Computed fees for {len(fees_by_order)} orders")
 
     existing_tx_ids_result = await session.execute(
         select(Event.user_metadata["transaction_id"].as_string())
@@ -116,14 +160,16 @@ async def create_missing_balance_order_events(
                 assert tx.presentment_amount is not None
                 assert tx.presentment_currency is not None
 
+                order_id_str = str(tx.order.id)
                 metadata: BalanceOrderMetadata = {
                     "transaction_id": str(tx.id),
-                    "order_id": str(tx.order.id),
+                    "order_id": order_id_str,
                     "amount": tx.amount,
                     "currency": tx.currency,
                     "presentment_amount": tx.presentment_amount,
                     "presentment_currency": tx.presentment_currency,
                     "tax_amount": tx.order.tax_amount,
+                    "fee": fees_by_order.get(order_id_str, 0),
                 }
                 if tx.order.tax_rate is not None:
                     if tx.order.tax_rate["country"] is not None:
@@ -301,6 +347,7 @@ async def create_missing_balance_refund_events(
                     "tax_amount": tx.tax_amount,
                     "tax_country": tx.tax_country or "",
                     "tax_state": tx.tax_state or "",
+                    "fee": 0,
                 }
                 if tx.order_id is not None:
                     metadata["order_id"] = str(tx.order_id)
@@ -350,6 +397,10 @@ async def create_missing_balance_dispute_events(
     Create balance.dispute events for dispute transactions that don't have one.
     """
     typer.echo("\n=== Creating missing balance.dispute events ===")
+
+    typer.echo("Computing dispute fees by order...")
+    dispute_fees_by_order = await _compute_dispute_fees_by_order(session)
+    typer.echo(f"Computed dispute fees for {len(dispute_fees_by_order)} orders")
 
     existing_tx_ids_result = await session.execute(
         select(Event.user_metadata["transaction_id"].as_string())
@@ -423,6 +474,7 @@ async def create_missing_balance_dispute_events(
                 assert tx.presentment_amount is not None
                 assert tx.presentment_currency is not None
 
+                order_id_str = str(tx.order_id) if tx.order_id else None
                 metadata: BalanceDisputeMetadata = {
                     "transaction_id": str(tx.id),
                     "dispute_id": str(tx.dispute.id),
@@ -433,6 +485,9 @@ async def create_missing_balance_dispute_events(
                     "tax_amount": tx.tax_amount,
                     "tax_country": tx.tax_country or "",
                     "tax_state": tx.tax_state or "",
+                    "fee": dispute_fees_by_order.get(order_id_str, 0)
+                    if order_id_str
+                    else 0,
                 }
                 if tx.order_id is not None:
                     metadata["order_id"] = str(tx.order_id)
@@ -559,6 +614,7 @@ async def create_missing_balance_refund_reversal_events(
                     "tax_amount": tx.tax_amount,
                     "tax_country": tx.tax_country or "",
                     "tax_state": tx.tax_state or "",
+                    "fee": 0,
                 }
                 if tx.order_id is not None:
                     metadata["order_id"] = str(tx.order_id)
