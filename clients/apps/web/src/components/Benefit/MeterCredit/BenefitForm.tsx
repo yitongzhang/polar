@@ -18,23 +18,59 @@ import {
   FormLabel,
   FormMessage,
 } from '@polar-sh/ui/components/ui/form'
+import { PlusIcon } from 'lucide-react'
+import { useCallback } from 'react'
 import { useFormContext } from 'react-hook-form'
 
+import CreateMeterModalContent from '@/components/Meter/CreateMeterModalContent'
+import { InlineModal } from '@/components/Modal/InlineModal'
+import { useModal } from '@/components/Modal/useModal'
 import { SpinnerNoMargin } from '@/components/Shared/Spinner'
 import { useMeters } from '@/hooks/queries/meters'
+import Button from '@polar-sh/ui/components/atoms/Button'
 
 export const MeterCreditBenefitForm = ({
   organization,
 }: {
   organization: schemas['Organization']
 }) => {
-  const { data: meters } = useMeters(organization.id, {
+  const { data: meters, refetch } = useMeters(organization.id, {
     sorting: ['name'],
     is_archived: false,
   })
 
-  const { control } =
+  const { control, setValue } =
     useFormContext<schemas['BenefitMeterCreditCreate']>()
+
+  const {
+    isShown: isCreateMeterModalShown,
+    show: showCreateMeterModal,
+    hide: hideCreateMeterModal,
+  } = useModal(false)
+
+  const onSelectMeter = useCallback(
+    async (meter: schemas['Meter']) => {
+      // This is embarrassing but the <Select /> component has to re-render
+      // with the updated `meters` as options,
+      // before it'll accept this as a valid select value.
+      //
+      // This is an open issue with Radix UI since 2024
+      // (https://github.com/radix-ui/primitives/issues/2817)
+
+      // To work around this, we run an explicit `refetch` that we can await
+      // and then set the value in a double requestAnimationFrame callback.
+      // First rAF ensures this component is updated,
+      // second rAF ensures the <SelectContent /> was updated too.
+      await refetch()
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          setValue('properties.meter_id', meter.id)
+        })
+      })
+    },
+    [setValue, refetch],
+  )
 
   if (!meters) {
     return (
@@ -47,9 +83,15 @@ export const MeterCreditBenefitForm = ({
   return (
     <>
       {meters.items.length === 0 ? (
-        <p className="dark:text-polar-500 text-sm text-gray-500">
-          No meters available. Please create a meter first.
-        </p>
+        <Button
+          onClick={(e) => {
+            e.preventDefault()
+            showCreateMeterModal()
+          }}
+          size="sm"
+        >
+          Create a Meter
+        </Button>
       ) : (
         <>
           <FormField
@@ -61,7 +103,20 @@ export const MeterCreditBenefitForm = ({
             render={({ field }) => {
               return (
                 <FormItem>
-                  <FormLabel>Meter</FormLabel>
+                  <div className="flex flex-row items-center justify-between gap-x-2">
+                    <FormLabel>Meter</FormLabel>
+                    <button
+                      type="button"
+                      className="flex flex-row items-center gap-x-1 text-sm font-medium text-gray-500"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        showCreateMeterModal()
+                      }}
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add Meter
+                    </button>
+                  </div>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger>
@@ -129,6 +184,17 @@ export const MeterCreditBenefitForm = ({
           />
         </>
       )}
+      <InlineModal
+        isShown={isCreateMeterModalShown}
+        hide={hideCreateMeterModal}
+        modalContent={
+          <CreateMeterModalContent
+            organization={organization}
+            onSelectMeter={onSelectMeter}
+            hideModal={hideCreateMeterModal}
+          />
+        }
+      />
     </>
   )
 }
