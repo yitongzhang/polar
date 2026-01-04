@@ -42,6 +42,25 @@ export const useListOrganizations = (
     enabled,
   })
 
+export const useCreateOrganization = () =>
+  useMutation({
+    mutationFn: (body: schemas['OrganizationCreate']) => {
+      return api.POST('/v1/organizations/', { body })
+    },
+    onSuccess: async (result, _variables, _ctx) => {
+      const { data, error } = result
+      if (error) {
+        return
+      }
+      getQueryClient().invalidateQueries({
+        queryKey: ['organizations', data.id],
+      })
+      await revalidate(`organizations:${data.id}`)
+      await revalidate(`organizations:${data.slug}`)
+      await revalidate(`storefront:${data.slug}`)
+    },
+  })
+
 export const useUpdateOrganization = () =>
   useMutation({
     mutationFn: (variables: {

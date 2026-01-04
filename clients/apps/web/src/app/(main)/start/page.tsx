@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation'
  *
  * This page aims at determining where to redirect an authenticated user.
  *
- * - If the user has no organizations, show an empty state.
+ * - If the user has no organizations, redirect to the organization creation page.
  * - If the user has organizations and a last visited organization, redirect them to that organization's dashboard.
  * - Otherwise, redirect them to the first organization's dashboard.
  */
@@ -20,11 +20,7 @@ export default async function Page() {
   const userOrganizations = await getUserOrganizations(api, true)
 
   if (userOrganizations.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-gray-500">No organizations found.</p>
-      </div>
-    )
+    redirect('/dashboard/create')
   }
 
   const lastVisitedOrg = getLastVisitedOrg(await cookies(), userOrganizations)
