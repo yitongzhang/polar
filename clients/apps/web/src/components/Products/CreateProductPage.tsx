@@ -1,15 +1,20 @@
 import { Upload } from '@/components/FileUpload/Upload'
-import { useCreateProduct } from '@/hooks/queries'
+import {
+  useBenefits,
+  useCreateProduct,
+  useUpdateProductBenefits,
+} from '@/hooks/queries'
 import { setProductValidationErrors } from '@/utils/api/errors'
 import { ProductEditOrCreateForm, productToCreateForm } from '@/utils/product'
 import { schemas } from '@polar-sh/client'
 import Button from '@polar-sh/ui/components/atoms/Button'
 import { Form } from '@polar-sh/ui/components/ui/form'
 import { useRouter } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { DashboardBody } from '../Layout/DashboardLayout'
 import { getStatusRedirect } from '../Toast/utils'
+import { Benefits } from './Benefits/Benefits'
 import ProductForm from './ProductForm/ProductForm'
 
 const reuploadMedia = async (
@@ -45,6 +50,25 @@ export const CreateProductPage = ({
   sourceProduct,
 }: CreateProductPageProps) => {
   const router = useRouter()
+  const benefitsQuery = useBenefits(organization.id, {
+    limit: 200,
+  })
+  const organizationBenefits = useMemo(
+    () => benefitsQuery.data?.items ?? [],
+    [benefitsQuery],
+  )
+  const totalBenefitCount = benefitsQuery.data?.pagination?.total_count ?? 0
+
+  // Store full benefit objects instead of just IDs to avoid lookup issues
+  const [enabledBenefits, setEnabledBenefits] = useState<schemas['Benefit'][]>(
+    sourceProduct?.benefits ?? [],
+  )
+
+  // Derive IDs from the benefit objects
+  const enabledBenefitIds = useMemo(
+    () => enabledBenefits.map((b) => b.id),
+    [enabledBenefits],
+  )
 
   const getDefaultValues = () => {
     if (sourceProduct) {
@@ -76,6 +100,7 @@ export const CreateProductPage = ({
   const { handleSubmit, setError } = form
 
   const createProduct = useCreateProduct(organization)
+  const updateBenefits = useUpdateProductBenefits(organization)
 
   const onSubmit = useCallback(
     async (productCreate: ProductEditOrCreateForm) => {
@@ -106,6 +131,13 @@ export const CreateProductPage = ({
         return
       }
 
+      await updateBenefits.mutateAsync({
+        id: product.id,
+        body: {
+          benefits: enabledBenefitIds,
+        },
+      })
+
       router.push(
         getStatusRedirect(
           `/dashboard/${organization.slug}/products`,
@@ -114,8 +146,30 @@ export const CreateProductPage = ({
         ),
       )
     },
-    [organization, sourceProduct, createProduct, setError, router],
+    [
+      organization,
+      sourceProduct,
+      enabledBenefitIds,
+      createProduct,
+      updateBenefits,
+      setError,
+      router,
+    ],
   )
+
+  const onSelectBenefit = useCallback((benefit: schemas['Benefit']) => {
+    setEnabledBenefits((benefits) => [...benefits, benefit])
+  }, [])
+
+  const onRemoveBenefit = useCallback((benefit: schemas['Benefit']) => {
+    setEnabledBenefits((benefits) =>
+      benefits.filter((b) => b.id !== benefit.id),
+    )
+  }, [])
+
+  const onReorderBenefits = useCallback((benefits: schemas['Benefit'][]) => {
+    setEnabledBenefits(benefits)
+  }, [])
 
   return (
     <DashboardBody
@@ -132,12 +186,21 @@ export const CreateProductPage = ({
             <ProductForm organization={organization} update={false} />
           </form>
         </Form>
+        <Benefits
+          organization={organization}
+          benefits={organizationBenefits}
+          totalBenefitCount={totalBenefitCount}
+          selectedBenefits={enabledBenefits}
+          onSelectBenefit={onSelectBenefit}
+          onRemoveBenefit={onRemoveBenefit}
+          onReorderBenefits={onReorderBenefits}
+        />
       </div>
       <div className="flex flex-row items-center gap-2 pb-12">
         <Button
           onClick={handleSubmit(onSubmit)}
-          loading={createProduct.isPending}
-          disabled={createProduct.isPending}
+          loading={createProduct.isPending || updateBenefits.isPending}
+          disabled={createProduct.isPending || updateBenefits.isPending}
         >
           Create Product
         </Button>
