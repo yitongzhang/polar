@@ -62,6 +62,22 @@ export const useDiscounts = (
     retry: defaultRetry,
   })
 
+export const useCreateDiscount = (organizationId: string) =>
+  useMutation({
+    mutationFn: (body: schemas['DiscountCreate']) => {
+      return api.POST('/v1/discounts/', {
+        body,
+      })
+    },
+    onSuccess: (result, _variables, _ctx) => {
+      const { data, error } = result
+      if (error) {
+        return
+      }
+      invalidateDiscountsQueries({ organizationId, id: data.id })
+    },
+  })
+
 export const useUpdateDiscount = (id: string) =>
   useMutation({
     mutationFn: (body: schemas['DiscountUpdate']) => {
