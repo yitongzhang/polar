@@ -3,6 +3,7 @@ import Spinner from '@/components/Shared/Spinner'
 import { useCheckoutLinks } from '@/hooks/queries'
 import { useInViewport } from '@/hooks/utils'
 import { OrganizationContext } from '@/providers/maintainerOrganization'
+import AddOutlined from '@mui/icons-material/AddOutlined'
 import ArrowDownward from '@mui/icons-material/ArrowDownward'
 import ArrowUpward from '@mui/icons-material/ArrowUpward'
 import LinkOutlined from '@mui/icons-material/LinkOutlined'
@@ -17,6 +18,7 @@ export interface CheckoutLinkListProps {
   setProductIds: (productIds: string[]) => void
   selectedCheckoutLinkId: string | null
   setSelectedCheckoutLinkId: (id: string) => void
+  showCreateCheckoutLinkModal: () => void
 }
 
 export const CheckoutLinkList = ({
@@ -24,6 +26,7 @@ export const CheckoutLinkList = ({
   setProductIds,
   selectedCheckoutLinkId,
   setSelectedCheckoutLinkId,
+  showCreateCheckoutLinkModal,
 }: CheckoutLinkListProps) => {
   const { organization } = useContext(OrganizationContext)
 
@@ -78,6 +81,13 @@ export const CheckoutLinkList = ({
             ) : (
               <ArrowDownward fontSize="small" />
             )}
+          </Button>
+          <Button
+            size="icon"
+            className="h-6 w-6"
+            onClick={showCreateCheckoutLinkModal}
+          >
+            <AddOutlined fontSize="small" />
           </Button>
         </div>
       </div>
